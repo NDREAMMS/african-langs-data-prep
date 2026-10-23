@@ -1,0 +1,129 @@
+# preprocess.yaml — seuils du prétraitement.
+# Principe §2 : AUCUN seuil en dur ailleurs. Le hash de ce fichier = version du traitement.
+# Principe §2.2 : un seuil sans `provenance: calibrage_*` BLOQUE la publication du manifest.
+# Les valeurs ci-dessous sont des HYPOTHÈSES de départ, à calibrer (étape 0, §3).
+
+meta:
+  version: "1.1"
+  lang: lin
+  # Hash calculé au chargement (common/config.py) — ne pas éditer à la main.
+
+# ---------------------------------------------------------------------------
+# Politiques produit — TRANCHÉES le 2026-10-18 (§11, D-a .. D-e)
+# ---------------------------------------------------------------------------
+policies:
+  # D-a : hybride — orthographe cible pure côté TTS, mixte marqué côté NMT.
+  code_switching:
+    nmt: tolerant                 # tolerant | strict
+    tts: strict
+  # D-b : bas ressource — on ne jette pas, on met de côté (T4/A5/A6).
+  low_resource_mode: bucket       # reject | down_weight | bucket
+  # D-c : statut tonal par langue (D8). Wolof non tonal (WALS) → none.
+  tone_model:
+    lin: lexical                  # 2 tons (bas non marqué / aigu) + descendant
+    bam: lexical
+    wol: none                     # revue linguistique requise avant tout pitch_accent
+  # D-d : registre TTS à couvrir.
+  tts_register: [religious, courant]
+  # D-e : élargir le corpus au-delà de la Bible (audit licence D6 requis, téléchargement différé).
+  broaden_corpus: audit_pending   # audit_pending | integrated
+
+# ---------------------------------------------------------------------------
+# Chaîne TEXTE (NMT) — T1..T11 (§4)
+# ---------------------------------------------------------------------------
+text:
+  T1_schema:
+    required: [src, tgt, lang_src, lang_tgt, domain]
+    provenance: null              # règle structurelle, pas un seuil
+  T2_exact_dedup:
+    enabled: true
+  T3_numerals:
+    table: numerals_lin.yaml
+    provenance: null              # table linguistique (numéraux_lin.yaml)
+  T4_length:
+    min_words: 1
+    max_words: 50
+    beyond: bucket                # down_weight | bucket | reject
+    provenance: null              # à calibrer
+  T5_length_ratio:
+    min: 0.5
+    max: 2.0
+    provenance: null              # à calibrer
+  T6_langid:
+    min_conf: 0.75
+    tool: fasttext_lid176         # couverture lin À VÉRIFIER (§3.4) ; repli cld3/maison
+    model_path: null              # lid.176.bin ; null => repli alphabet (journalisé)
+    provenance: null              # à calibrer
+  T7_alphabet:
+    min_ratio: 0.90               # sous ce seuil : problème (rejet si strict)
+    hard_ratio: 0.55              # sous ce seuil : rejet même en mode tolerant (D-a)
+    provenance: null              # à calibrer
+  T8_minhash:
+    ngram: 5
+    threshold: 0.85
+    provenance: null              # à calibrer
+  T9_parallel:
+    tool: sonar                   # sonar | labse
+    min_cosine: 0.55              # à calibrer PAR PAIRE (§3.4)
+    model_path: null              # modèle SONAR/LaBSE ; null => étape sautée (journalisée)
+    provenance: null
+  T10_leak:
+    reference: data/flores/devtest
+    max_overlap: 0                # 0 chevauchement autorisé
+    provenance: null
+  T11_split:
+    dev: 0.02
+    test: 0.02
+
+# ---------------------------------------------------------------------------
+# Chaîne AUDIO (TTS) — A1..A12 (§5)
+# ORDRE RÉEL v1.1 : A1 A2 A4 A5 A6 A7 A8 A9 A3 A10 A11 A12
+# ---------------------------------------------------------------------------
+audio:
+  target_sr: 24000                # sortie standard (D7/D10)
+  A1_load:
+    channels: 1                   # mono obligatoire
+  A2_resample:
+    # 48k(BibleTTS)→24k : upsample=F; 16k(WAXAL)→24k : bande 8-12k VIDE.
+    # Le champ `source` (A11) empêche d'apprendre la source comme variable cachée (§5).
+    backend: scipy                 # scipy (repli) | torchaudio (cible prod, D13)
+    provenance: null
+  A4_vad:
+    backend: energy               # silero (prod) | energy (repli CPU, testé ici)
+    edge_silence_s: 0.5
+    provenance: null
+  A5_duration:
+    min_s: 1.5
+    max_s: 10.0
+    beyond: bucket                # bas ressource : pas de rejet sec (§2.7)
+    provenance: null              # à calibrer
+  A6_rate:
+    max_words_per_s: 4.0
+    provenance: null              # à calibrer
+  A7_dnsmos:
+    min: 3.0                      # sur audio NON normalisé (§5)
+    model_path: null              # ONNX DNSMOS ; null => étape sautée (à fournir)
+    provenance: null              # à calibrer sur les 100 clips annotés (§3.4)
+  A8_snr:
+    min_db: 15.0                  # sur audio NON normalisé (§5)
+    backend: simple               # simple (repli) | wada (cible prod)
+    provenance: null              # à calibrer
+  A9_asr_wer:
+    max_wer: 0.30                 # seule vérif. sémantique ; WER de réf. par langue (§3)
+    model_path: null              # MMS-ASR ; null => étape sautée
+    provenance: null              # à calibrer
+  A3_loudness:
+    backend: null                 # pyloudnorm | null (sauté si absent)
+    target_lufs: -23.0
+    tol_lufs: 1.0
+    max_true_peak_dbfs: -1.0      # rejet si crête > -1 dBFS (clipping)
+    provenance: null
+  A10_leak:
+    reference: data/flores/devtest   # référentiel d'éval (FLORES-200 devtest)
+    max_overlap: 0
+    provenance: null
+  A11_metadata:
+    required: [speaker, lang, duration, sr, source, domain]
+  A12_mel:
+    n_mels: 80
+    enabled: true

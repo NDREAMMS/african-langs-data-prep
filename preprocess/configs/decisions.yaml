@@ -1,0 +1,59 @@
+# Registre des décisions produit — prétraitement.
+# Une entrée par décision (§11). Toute révision = nouvelle version de ce fichier
+# + nouvelle version des manifests (le hash de config change).
+# Transcrit ici pour que les politiques soient versionnées avec le traitement.
+
+version: "1.0"
+date: "2026-10-18"
+lang: lin
+
+decisions:
+  - id: D-a
+    sujet: Politique code-switching (filtre T7)
+    options: [strict, tolerant]
+    retenu: hybride
+    regle:
+      nmt: tolerant      # phrases mixtes conservées, marquées domain: code_switch
+      tts: strict        # orthographe cible pure (texte toujours lu)
+    justification: >
+      Le code-switching FR est fréquent et normal ; un filtre strict le rejette en masse.
+      Le TTS lit un texte figé (strict), le NMT doit reconnaître/afficher l'emprunt (tolerant).
+    porteur: produit
+
+  - id: D-b
+    sujet: Mode des filtres T4 / A5 / A6 en bas ressource
+    options: [reject, down_weight, bucket]
+    retenu: bucket
+    justification: >
+      Aucune perte sèche : les lignes hors bornes vont dans un lot séparé, réintégrable
+      après recalibrage. down_weight réservé au cas où le manifest porte déjà un poids.
+    porteur: ml
+
+  - id: D-c
+    sujet: Statut tonal du wolof
+    options: [none, pitch_accent]
+    retenu: none
+    justification: >
+      Le wolof n'est pas tonal au sens du lingala (WALS : non tonal). pitch_accent est une
+      hypothèse non validée ; revue linguistique requise avant tout changement.
+    porteur: ml+linguiste
+    langue_concernee: wol
+
+  - id: D-d
+    sujet: Registre TTS à couvrir
+    options: [religious, religious+courant]
+    retenu: [religious, courant]
+    justification: >
+      BibleTTS seul est un registre étroit ; le vocabulaire courant manque. WAXAL (courant)
+      complète côté ASR/courant ; une source de registre courant TTS est à trouver (D-e).
+    porteur: produit
+
+  - id: D-e
+    sujet: Élargir le corpus au-delà de la Bible
+    options: [bible_only, broaden]
+    retenu: broaden
+    etat: audit_pending   # licences à vérifier avant intégration (D6) ; téléchargement différé
+    justification: >
+      Corpus 100 % biblique → risque d'effondrement de domaine au fine-tuning NMT.
+      Sources candidates listées dans sources.csv ; aucune n'entre sans licence permissive vérifiée.
+    porteur: ml+juridique

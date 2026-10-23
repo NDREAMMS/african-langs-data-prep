@@ -1,0 +1,34 @@
+# numerals_lin.yaml — table chiffres -> mots, LINGALA.
+# §4 T3 : la MÊME table sert côté texte et côté audio (sinon A9 mesure un WER artificiel
+# sur les phrases contenant des nombres).
+# État : hypothèse de départ — à valider par un locuteur/linguiste avant publication.
+lang: lin
+units:
+  0: "libúngútulú"     # zéro
+  1: "moko"
+  2: "mibale"
+  3: "misato"
+  4: "minei"
+  5: "mitano"
+  6: "motoba"
+  7: "nsambo"
+  8: "mwambe"
+  9: "libwa"
+tens:
+  10: "zomi"
+  20: "ntuku mibale"
+  30: "ntuku misato"
+  40: "ntuku minei"
+  50: "ntuku mitano"
+  60: "ntuku motoba"
+  70: "ntuku nsambo"
+  80: "ntuku mwambe"
+  90: "ntuku libwa"
+scales:
+  100: "nkama"
+  1000: "nkóto"
+# Stratégie de composition : "tens_units" => "ntuku mibale na moko" (22).
+composition: "tens_units"
+connector: "na"
+# Repli si un nombre n'est pas couvert : "digits" (épeler chiffre à chiffre) ou "keep".
+fallback: "digits"

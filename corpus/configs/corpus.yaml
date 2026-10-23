@@ -1,0 +1,52 @@
+# Configuration de la chaîne CORPUS français ↔ lingala.
+# Aucun seuil en dur : chaque bloc chiffré porte une `provenance`.
+# `provenance: null` = pas encore calibré → corpus non publiable (§2.2).
+
+meta:
+  name: corpus_fr_ln
+  version: "1.0"
+  date: "2026-10-16"
+  lang_src: fra
+  lang_tgt: lin
+
+# Politique de licence (D6) : seules les licences permissives entrent en production.
+licence:
+  permises:
+    - public-domain
+    - CC0-1.0
+    - CC-BY-4.0
+    - CC-BY-SA-4.0
+    - MIT
+    - Apache-2.0
+  interdites: [CC-BY-NC, CC-BY-NC-SA, CC-BY-ND, proprietary, unknown]
+
+text:
+  # `min`/`max`  = bornes dures (rejet).  `warn_*` = bande grise (quarantaine,
+  # à valider plus tard) — plus étroites que les bornes dures.
+  C4_length:          # nombre de mots côté lingala
+    min_words: 1
+    max_words: 200
+    warn_min_words: 3
+    warn_max_words: 120
+    provenance: null
+  C5_ratio:           # ratio de longueur en caractères tgt/src
+    min: 0.4
+    max: 3.6
+    warn_min: 0.5
+    warn_max: 3.0
+    provenance: null
+  C7_alphabet:
+    min_ratio: 0.80
+    warn_ratio: 0.90
+    provenance: null
+  C8_dedup:
+    ngram: 5
+    threshold: 0.85
+    provenance: null
+
+split:
+  # book_aware : pour la Bible, on découpe PAR LIVRE (pas par verset) afin
+  # d'éviter toute fuite : un même livre ne peut pas être à cheval train/test.
+  method: book_aware
+  dev: 0.05
+  test: 0.05

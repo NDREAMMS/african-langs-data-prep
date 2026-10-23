@@ -1,0 +1,7 @@
+id,type,path,src_lang,tgt_lang,license,permis,domain,status,note
+ebible_bible,usfm_dir,data/corpus/raw/ebible,fra,lin,CC-BY-SA-4.0 + domaine public,oui,bible,present,Open Lingala Contemporary Bible (Biblica 2020 CC BY-SA 4.0) alignee sur Louis Segond 1910 (domaine public)
+hf_michsethowusu,hf_dataset,,fra,lin,unknown (derive NLLB-v1/OPUS),non,mixte,absent,michsethowusu/french-lingala_sentence-pairs ~692k paires - AUCUNE licence explicite sur la fiche HF (derive de NLLB-v1 OPUS/Meta) ; contenu majoritairement religieux (Watchtower/Bible/Coran) -> REFUSE tant que non confirme (D6)
+hf_central_africa,hf_dataset,,fra,lin,unknown,non,mixte,absent,Svngoku/central-africa-multilingual-translation ~7.05M paires - agregation (michsethowusu + google/smol) sans licence explicite -> REFUSE (D6)
+opus_general,hf_dataset,,fra,lin,unknown,non,mixte,absent,OPUS - verifier sous-corpus par sous-corpus ; JW300 (CC-BY-NC) et NC/ND exclus (D6)
+an_ka_taa,web_dict,,fra,bam,unknown,non,g2p_tonal,absent,An ka taa (Donaldson & Fenayon) dictionnaire bilingue - pas de licence ouverte affichee -> contact auteurs requis (D14)
+bamadaba_corbama,corpus_tonal,,fra,bam,CC-BY-NC-SA-3.0-FR,non,g2p_tonal,absent,Bamadaba / Corpus Bambara de Reference (Vydrin & al) - CC BY-NC-SA 3.0 FR = NON COMMERCIAL -> EXCLU (D6) ; bloque le lexique tonal bambara (D14)
