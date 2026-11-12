@@ -5,3 +5,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+
+# Local project folders not intended for this documentation repo
+ml/
+data/
