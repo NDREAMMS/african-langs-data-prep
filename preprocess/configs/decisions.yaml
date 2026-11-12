@@ -3,8 +3,8 @@
 # + nouvelle version des manifests (le hash de config change).
 # Transcrit ici pour que les politiques soient versionnées avec le traitement.
 
-version: "1.0"
-date: "2026-10-18"
+version: "1.1"
+date: "2026-11-02"
 lang: lin
 
 decisions:
@@ -57,3 +57,22 @@ decisions:
       Corpus 100 % biblique → risque d'effondrement de domaine au fine-tuning NMT.
       Sources candidates listées dans sources.csv ; aucune n'entre sans licence permissive vérifiée.
     porteur: ml+juridique
+
+  - id: D-f
+    sujet: Calibrage des seuils sans relecteur humain
+    options: [human_only, auto, auto_with_hypothesis]
+    retenu: auto_with_hypothesis
+    regle:
+      provenance_admise: [calibrage_*, auto_*, hypothese_*]   # hypothese_* réservé aux blocs listés
+      hypothesis_blocks: [T8_minhash, A3_loudness]
+      publication: soumise aux gates automatiques (rétention, sources, filtre dominant, clipping)
+      validation_level: auto_unvalidated
+    justification: >
+      Aucun locuteur natif, linguiste ni annotateur n'est disponible. Le calibrage supervisé
+      (« ≥ 95 % de précision sur les rejets ») est impossible. On le remplace par un calibrage
+      par percentiles sur les données, avec preuve versionnée et budget de rejet, complété par
+      des gates de forme. Le statut est explicitement auto_unvalidated : jamais présenté comme
+      une validation humaine. Les limites (distribution actuelle, pas de justesse sémantique)
+      sont assumées et reportées aux gates aval (back-translation, UTMOS, GOP).
+    porteur: ml
+    date: "2026-11-02"

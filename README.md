@@ -57,9 +57,9 @@ data/parallel/lin_fr.jsonl
 Principes transverses, appliqués aux deux chaînes :
 
 1. **Aucun seuil en dur** — toute valeur chiffrée vit dans un YAML, avec une
-   `provenance`. Un seuil sans `provenance: calibrage_<lang>_<date>` rend le
-   manifest **non publiable** et bloque le run (code de sortie `2`) sauf
-   `--allow-uncalibrated` (mode brouillon).
+   `provenance`. Un seuil sans provenance admise par le mode de validation rend
+   le manifest **non publiable** et bloque le run (code de sortie `2`) sauf
+   `--allow-uncalibrated` (corpus) / `--allow-draft` (prétraitement).
 2. **Rien n'est silencieux** — chaque ligne écartée est journalisée
    (`rejects.jsonl`), chaque étape sautée faute de modèle est notée
    (`run_notes.json`), y compris l'usage d'un repli CPU.
@@ -104,7 +104,7 @@ Aucune de ces dépendances n'est obligatoire : sans elles, l'étape concernée e
 data/corpus/raw/ebible/fraLSG/*.usfm     # Louis Segond 1910 (domaine public)
 data/corpus/raw/ebible/lin/*.usfm        # Open Lingala Contemporary Bible
 data/bibletts/extracted/lingala/dev/...  # .flac + .txt (48 kHz)
-data/waxal/asr/lin/train/*.parquet       # audio + transcription (16 kHz)
+data/waxal/asr/lin/train/*.parquet       # audio mp3 + transcription (48 kHz, 44,1 kHz occasionnel)
 data/flores/devtest/                     # référentiel anti-fuite (actuellement vide)
 ```
 
@@ -131,11 +131,11 @@ python -m ml.corpus.run stats
 
 # 5) prétraitement NMT
 python -m ml.preprocess.run nmt \
-    --input data/parallel/lin_fr.jsonl --allow-uncalibrated
+    --input data/parallel/lin_fr.jsonl --allow-draft
 
 # 6) prétraitement audio (échantillon de 400 clips)
 python -m ml.preprocess.run audio --limit 400 --sources bibletts,waxal \
-    --allow-uncalibrated
+    --allow-draft
 ```
 
 ---
@@ -210,19 +210,21 @@ le gain amplifierait le bruit avant qu'il ne soit mesuré.
 | A4 | VAD (coupe des silences de bord) puis découpe en segments ≤ `max_s` |
 | A5 / A6 | Durée et débit (mots/s) → `bucket` plutôt que rejet en bas ressource |
 | A7 / A8 | Qualité perceptuelle (DNSMOS) et SNR, sur audio **non normalisé** |
-| A9 | Cohérence texte↔audio (WER via MMS-ASR) |
+| A9 | Cohérence texte↔audio (WER via M3 XLS-R+CTC ; MMS exclu, D6) |
 | A3 | Loudness (−23 LUFS si `pyloudnorm`) + rejet du clipping (crête > −1 dBFS) |
 | A10 | Anti-fuite |
 | A11 | Métadonnées obligatoires (`speaker`, `lang`, `duration`, `sr`, `source`, `domain`) |
 | A12 | Log-mel 80 bandes en cache (`mel/*.npy`) |
 
-Le champ `source` (`bibletts` 48 kHz vs `waxal` 16 kHz) est **conservé** : il
+Le champ `source` (`bibletts` 48 kHz studio vs `waxal` 48/44,1 kHz mp3) est **conservé** : il
 empêche le modèle d'apprendre la source comme variable cachée.
 
-### G2P — bloqué
+### G2P — tonal bloqué, segmental non branché
 
-`python -m ml.preprocess.run g2p` sort en code `3` : la licence du lexique tonal
-bambara n'est pas confirmée (D14). Le G2P lingala reste à construire.
+`python -m ml.preprocess.run g2p` sort en code `3`. Le **segmental** est réalisable avec
+`africa-g2p` 0.3.2 (Apache-2.0, `lin` parmi 750 langues ; vérifié sans erreur sur
+41 076 mots WAXAL) ; le **tonal** dépend du lexique lingala (D8) et, pour le bambara,
+de la licence D14. Le branchement du segmental dans `text_g2p.py` reste à faire.
 
 ---
 
@@ -235,15 +237,35 @@ bambara n'est pas confirmée (D14). Le G2P lingala reste à construire.
 | Corpus | `C4_length`, `C5_ratio`, `C7_alphabet`, `C8_dedup` | `ml/corpus/configs/corpus.yaml` |
 | Prétraitement | `T4`, `T5`, `T6`, `T7`, `T8`, `T9`, `A5`, `A6`, `A7`, `A8`, `A9`, `A3` | `ml/preprocess/configs/preprocess.yaml` |
 
-Tant qu'un seul de ces blocs n'a pas `provenance: calibrage_<lang>_<date>` :
+La provenance admise dépend de `validation.mode` :
 
-- le run refuse de produire un manifest publiable (code `2`), sauf
-  `--allow-uncalibrated` ;
-- `report.json` porte `publishable: false` et la liste `uncalibrated`.
+- `human` : seuls `calibrage_<lang>_<date>` sont valides ;
+- `auto` (décision « sans relecteur », D-f) : `auto_<methode>_<lang>_<date>` et, pour les
+  blocs listés dans `hypothesis_blocks`, `hypothese_<lang>_<date>`.
+
+Tant qu'un bloc n'a pas de provenance admise :
+
+- le run refuse de produire un manifest (code `2`), sauf `--allow-draft` ;
+- `report.json` porte `publishable: false`, la liste `blocked` et `validation_level: blocked`.
+
+Même calibré, un manifest n'est publiable que si les **gates automatiques** passent
+(`report.json → gates`) : rétention tokens/vocab, aucune source ou locuteur vidé, aucun
+filtre > 50 % des rejets, taux de clipping < 1 %. Un manifest auto-calibré porte
+`validation_level: auto_unvalidated` — jamais `human_validated`.
 
 ### Outillage de calibrage
 
-L'étape 0 est outillée par `ml.preprocess.calibrate` :
+Mode auto (sans relecteur) :
+
+```bash
+python -m ml.preprocess.calibrate auto  --lang lin --n-text 5000 --n-audio 100
+python -m ml.preprocess.calibrate apply --lang lin --auto
+```
+
+`auto` écrit `calibration_auto.json` + `evidence/<bloc>.json` (percentiles, n, `data_hash`)
+et applique un budget de rejet. Les blocs sans modèle restent `non_calcules`.
+
+Mode humain (hérité, optionnel) — `ml.preprocess.calibrate` :
 
 ```bash
 # 1) tirer les échantillons à annoter (300 lignes texte, 200 paires, 100 clips/source)
@@ -261,8 +283,76 @@ Sans annotation, `solve` ne calcule rien et le signale : les seuils restent
 `null` et les manifests restent non publiables. Le protocole détaillé et le
 tableau de résultats à remplir sont dans `ml/preprocess/configs/calibration_lin.md`.
 
-Les décisions produit (D-a → D-e) sont versionnées dans
+Les décisions produit (D-a → D-f) sont versionnées dans
 `ml/preprocess/configs/decisions.yaml`.
+
+---
+
+### Protocole de calibrage détaillé — Lingala (lin)
+
+> **STATUT : MODE AUTO (D-f, décision « sans relecteur »).** Le calibrage humain n'est plus
+> requis. Les seuils sont calculés par percentiles sur les données, avec preuve versionnée,
+> et portent `provenance: auto_<méthode>_lin_<date>`. Les blocs structurels/normatifs
+> (`T8_minhash`, `A3_loudness`) portent `hypothese_lin_<date>`. Le manifest est publiable si
+> les gates automatiques passent, avec `validation_level: auto_unvalidated`.
+>
+> **Protocole humain ci-dessous : hérité, optionnel.** Il reste utilisable si un annotateur
+> devient disponible ; il produit alors `validation_level: human_validated`.
+
+#### Protocole auto (sans relecteur)
+
+```bash
+# 1) calculer les seuils + preuves (texte et audio)
+python -m ml.preprocess.calibrate auto --lang lin --n-text 5000 --n-audio 100
+
+# 2) contrôler data/calibration/lin/calibration_auto.json + evidence/*.json
+#    (percentiles, n, hash des données, blocs non calculés)
+
+# 3) reporter dans preprocess.yaml avec les provenances auto_/hypothese_
+python -m ml.preprocess.calibrate apply --lang lin --auto
+
+# 4) relancer le prétraitement ; vérifier report.json (gates, validation_level)
+```
+
+Règles :
+
+- le calibrage fixe un **budget de rejet** (p1/p99, p5, p95), pas une précision supervisée ;
+- chaque seuil a un fichier de preuve `evidence/<bloc>.json` (n, percentiles, data_hash) ;
+- `T6_langid`/`T9_parallel` ne sont calculés que si les modèles sont fournis ;
+- `A7_dnsmos` sans modèle tombe en hypothèse littérature (3,0) ;
+- `A9_asr_wer` est **non calculé** : MMS est interdit (D6), à remplacer par M3 ;
+- les gates (`validation.gates`) peuvent rétrograder un manifest même auto-calibré.
+
+#### Protocole humain (hérité, optionnel)
+
+1. **Échantillon texte** : 300 lignes tirées au hasard dans les sources parallèles, annotées :
+   `lang_id_ok`, `pair_ok`, `in_alphabet`.
+2. **Échantillon audio** : 100 clips/source annotés : `quality_ok`, `text_match_ok`.
+   Sources `lin` : `bibletts` (EZR, 48 kHz studio), `waxal` (16 kHz).
+3. **Choix des seuils** : viser ≥ 95 % de précision sur les rejets (sauf A9 : optimiser la
+   détection des mauvais appariements).
+4. **Vérification de couverture des outils** :
+   - `fasttext lid.176` sur `lin` : présence/rappel réels (souvent absent → repli cld3/classifieur).
+   - `MMS-ASR` : WER de référence `lin` sur l'échantillon A9.
+   - `SONAR`/`LaBSE` : distribution des cosinus sur paires justes/fausses FR→lin.
+   - `DNSMOS` : distribution sur les 100 clips `lin` (le 3,0 vient de la littérature, pas de nos données).
+5. **Conservation** : chaque seuil écrit avec `source: calibrage_lin_<date>` ; aucun `default`.
+
+#### Résultats (à remplir)
+
+| Filtre | Valeur retenue | Précision rejets | Source |
+|---|---|---|---|
+| T4_longueur | — | — | — |
+| T5_ratio | — | — | — |
+| T6_langid | — | — | — |
+| T7_alphabet | — | — | — |
+| T8_minhash | — | — | — |
+| T9_cosine | — | — | — |
+| A5_durée | — | — | — |
+| A6_débit | — | — | — |
+| A7_dnsmos | — | — | — |
+| A8_snr | — | — | — |
+| A9_wer | — | — | — |
 
 ---
 
@@ -298,6 +388,9 @@ vocabulaire/tokens/locuteur/source/domaine).
 
 Chaque run écrit aussi `report.json`, `config_snapshot.yaml`, `rejects.jsonl`
 et, pour le NMT/TTS, `run_notes.json` (étapes sautées, replis utilisés).
+`report.json` porte en plus `validation_mode`, `validation_level`
+(`blocked` / `auto_unvalidated` / `human_validated`), `blocked`, `gates`
+(détail des contrôles) et `publishable_reason`.
 `--clearml` ajoute le suivi distant (un task par étape, défensif si l'agent est
 absent).
 
@@ -309,10 +402,12 @@ absent).
 python -m pytest ml/preprocess/tests ml/corpus/tests -q
 ```
 
-31 tests golden couvrent : normalisation Unicode et numéraux, journal et
-rétentions, dédoublonnage exact/MinHash, garde-fou de calibrage, parsing USFM,
-alignement, split déterministe, filtres corpus, sélection de seuils, DSP audio
-(rééchantillonnage, VAD, découpe, SNR, WER, clipping) et orchestration TTS.
+46 tests golden couvrent : normalisation Unicode et numéraux, journal et
+rétentions, dédoublonnage exact/MinHash, garde-fou de calibrage, politique de
+validation (auto/hypothèse/bloqué), calibrage automatique + preuves, gates de
+publication, parsing USFM, alignement, split déterministe, filtres corpus,
+sélection de seuils, DSP audio (rééchantillonnage, VAD, découpe, SNR, WER,
+clipping) et orchestration TTS.
 
 ---
 

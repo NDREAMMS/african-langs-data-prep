@@ -29,6 +29,23 @@ policies:
   broaden_corpus: audit_pending   # audit_pending | integrated
 
 # ---------------------------------------------------------------------------
+# Politique de validation (décision « sans relecteur », D-f)
+# mode human = seuls calibrage_* ; mode auto = auto_* + hypothèse_* (blocs listés)
+# ---------------------------------------------------------------------------
+validation:
+  mode: auto                        # human | auto
+  allow_hypothesis: true
+  hypothesis_blocks: [T8_minhash, A3_loudness]
+  evidence_dir: data/calibration/{lang}/evidence
+  gates:
+    min_retention_tokens: 0.80      # part des tokens conservés
+    min_retention_vocab: 0.50       # part du vocabulaire unique conservé
+    min_source_retention: 0.20      # aucune source ne doit être vidée
+    max_single_filter_share: 0.50   # aucun filtre ne rejette > 50 % des entrées
+    max_clipping_rate: 0.01         # part de clips rejetés pour clipping
+    require_no_wiped_speakers: true
+
+# ---------------------------------------------------------------------------
 # Chaîne TEXTE (NMT) — T1..T11 (§4)
 # ---------------------------------------------------------------------------
 text:

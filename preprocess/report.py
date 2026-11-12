@@ -11,14 +11,26 @@ from pathlib import Path
 
 from .common.config import Config
 from .common.journal import Journal
+from .gates import evaluate
 
 
 def write_report(cfg: Config, jr: Journal, out_dir: str | Path) -> dict:
     out_dir = Path(out_dir)
     report = jr.report()
-    report["publishable"] = cfg.publishable
     report["cfg_hash"] = cfg.hash
-    report["uncalibrated"] = cfg.uncalibrated()
+    report["validation_mode"] = cfg.validation_mode()
+    report["validation_level"] = cfg.validation_level
+    report["blocked"] = cfg.blocked_blocks()
+    report["uncalibrated"] = report["blocked"]  # compat §2.2
+    report["gates"] = evaluate(report, cfg)
+
+    reasons: list[str] = []
+    if report["blocked"]:
+        reasons.append("seuils sans provenance admise: " + ", ".join(report["blocked"]))
+    if not report["gates"]["ok"]:
+        reasons.append("gates KO: " + ", ".join(report["gates"]["failures"]))
+    report["publishable"] = cfg.publishable and report["gates"]["ok"]
+    report["publishable_reason"] = reasons
     report["seuils"] = {
         block: {"valeur": cfg.raw[section][block], "provenance":
                 (cfg.raw[section][block] or {}).get("provenance")}

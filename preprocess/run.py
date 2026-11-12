@@ -3,10 +3,11 @@
 Exemples :
     python -m ml.preprocess.run audio --limit 400
     python -m ml.preprocess.run nmt --input data/parallel/lin_fr.jsonl
-    python -m ml.preprocess.run audio --allow-uncalibrated
+    python -m ml.preprocess.run audio --allow-draft
 
-Par défaut, un seuil non calibré (§2.2) BLOQUE la publication : le manifest est produit
-pour inspection (mode brouillon) mais `report.json` porte `publishable: false`.
+Par défaut, un seuil sans provenance admise (mode `validation`) BLOQUE la publication.
+`--allow-draft` produit le manifest pour inspection ; `report.json` porte alors
+`publishable: false`, `validation_level: blocked` et le détail des gates.
 """
 from __future__ import annotations
 
@@ -34,20 +35,29 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--sources", default="bibletts,waxal", help="sources audio")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--run-id", default=None)
-    ap.add_argument("--allow-uncalibrated", action="store_true",
-                    help="produire le manifest malgré des seuils non calibrés (brouillon)")
+    ap.add_argument("--allow-draft", "--allow-uncalibrated", dest="allow_draft",
+                    action="store_true",
+                    help="produire un manifest brouillon malgré des seuils bloqués")
     ap.add_argument("--clearml", action="store_true")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
-    uncal = cfg.uncalibrated()
-    if uncal and not args.allow_uncalibrated:
-        print("SEUILS NON CALIBRÉS (§2.2) — publication bloquée :", file=sys.stderr)
-        for s in uncal:
+    blocked = cfg.blocked_blocks()
+    if blocked and not args.allow_draft:
+        print("SEUILS BLOQUÉS (politique de validation) — publication bloquée :",
+              file=sys.stderr)
+        for s in blocked:
             print(f"  - {s}", file=sys.stderr)
-        print("Relancer avec --allow-uncalibrated pour produire un manifest brouillon.",
+        print("Lancer `python -m ml.preprocess.calibrate auto --lang "
+              f"{cfg.lang}` puis `apply --auto`, ou relancer avec --allow-draft.",
               file=sys.stderr)
         return 2
+    if blocked:
+        print(f"[brouillon] {len(blocked)} bloc(s) sans provenance admise — "
+              "manifest non publiable.", file=sys.stderr)
+    elif cfg.validation_level == "auto_unvalidated":
+        print("[validation] seuils auto-calibrés — validation_level=auto_unvalidated.",
+              file=sys.stderr)
 
     run_id = args.run_id or datetime.now(timezone.utc).strftime("run_%Y%m%dT%H%M%SZ")
     out_dir = _out_dir(cfg.lang, args.stage, run_id)
@@ -72,10 +82,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"run_id     : {run_id}")
     print(f"sorties    : {out_dir}")
     print(f"lus/gardés : {report['read']}/{report['kept']}  publishable={report['publishable']}")
+    print(f"validation : {report['validation_level']}  gates={'OK' if report['gates']['ok'] else 'KO'}")
     if report["drops"]:
         print("rejets     :", ", ".join(f"{k}={v}" for k, v in report["drops"].items()))
-    if uncal:
-        print(f"[!] {len(uncal)} seuil(s) non calibré(s) — manifest = brouillon non publiable.")
+    if not report["publishable"]:
+        print("[!] " + " | ".join(report["publishable_reason"]), file=sys.stderr)
     return 0
 
 

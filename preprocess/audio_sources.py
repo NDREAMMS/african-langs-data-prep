@@ -2,10 +2,12 @@
 
 Deux sources vérifiées sur le disque :
   - BibleTTS  : data/bibletts/extracted/lingala/<split>/<BOOK>/<..>.flac (+ .txt), 48 kHz studio.
-  - WAXAL ASR : data/waxal/asr/lin/<split>/*.parquet, audio (mp3) + transcrip./speaker_id, 16 kHz.
+  - WAXAL ASR : data/waxal/asr/lin/<split>/*.parquet, audio (mp3) + transcrip./speaker_id,
+    48 kHz majoritaire (44,1 kHz occasionnel, vérifié sur les parquets locaux).
 
-Le champ `source` (§5 A11) distingue ces deux mondes : BibleTTS=48k bande pleine,
-WAXAL=16k bande 8-12 kHz vide. Ne jamais les mélanger sans ce marqueur.
+Le champ `source` (§5 A11) distingue ces deux mondes : BibleTTS=48k studio,
+WAXAL=48k/44,1k (encodage mp3, bande passante variable). Ne jamais les mélanger
+sans ce marqueur.
 """
 from __future__ import annotations
 
